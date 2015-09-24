@@ -60,10 +60,10 @@ function eventLoad (e) {
 		
 	}
 	
+	loaded();
+	
 	window.addEventListener("resize", eventResize, false);
 	window.requestAnimationFrame(eventLoop);
-	
-	loaded();
 	
 	document.title = "Nutworks";
 	
