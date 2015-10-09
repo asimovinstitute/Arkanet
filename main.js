@@ -8,14 +8,14 @@ var stretch = 1;
 mouse.mouseOffsetX = 0;
 mouse.mouseOffsetY = 0;
 mouse.mouseTrueDrag = false;
-mouse.mouseDefaultEnabled = false;
+mouse.defaultEnabled = false;
 mouse.drag = 0;
 mouse.x = -1;
 mouse.y = -1;
 mouse.startX = -1;
 mouse.startY = -1;
 
-keyboard.keyboardDefaultEnabled = true;
+keyboard.defaultEnabled = true;
 keyboard.left = 0;
 keyboard.up = 0;
 keyboard.right = 0;
@@ -112,7 +112,7 @@ function eventKeyPress (e) {
 	
 	if (i == 91 || i == 93 || e.metaKey) keyboard.command = true;
 	
-	if (!keyboard.keyboardDefaultEnabled || i == 9) e.preventDefault();
+	if (!keyboard.defaultEnabled || i == 9) e.preventDefault();
 	
 	if (i == 16) keyboard.shift = true;
 	if (i == 9) keyboard.tab = true;
@@ -126,7 +126,7 @@ function eventKeyPress (e) {
 	if (i == 38 || i == 87) keyboard.up = 1;
 	if (i == 40 || i == 83) keyboard.down = 1;
 	
-	if (!keyboard.keyboardDefaultEnabled || i == 9) e.preventDefault();
+	if (!keyboard.defaultEnabled || i == 9) e.preventDefault();
 	
 }
 
@@ -136,7 +136,7 @@ function eventKeyRelease (e) {
 	
 	if (i == 91 || i == 93 || e.metaKey) keyboard.command = false;
 	
-	if (!keyboard.keyboardDefaultEnabled || i == 9) e.preventDefault();
+	if (!keyboard.defaultEnabled || i == 9) e.preventDefault();
 	
 	if (i == 16) keyboard.shift = false;
 	if (i == 9) keyboard.tab = false;
@@ -150,7 +150,7 @@ function eventKeyRelease (e) {
 	if (i == 38 || i == 87) keyboard.up = 0;
 	if (i == 40 || i == 83) keyboard.down = 0;
 	
-	if (!keyboard.keyboardDefaultEnabled || i == 9) e.preventDefault();
+	if (!keyboard.defaultEnabled || i == 9) e.preventDefault();
 	
 }
 
@@ -176,7 +176,7 @@ function eventTouchStart (e) {
 	mouse.startX = mouse.x;
 	mouse.startY = mouse.y;
 	
-	if (!mouse.mouseDefaultEnabled) e.preventDefault();
+	if (!mouse.defaultEnabled) e.preventDefault();
 	
 }
 
@@ -185,7 +185,7 @@ function eventTouchDrag (e) {
 	mouse.x = e.changedTouches[0].pageX - mouse.mouseOffsetX;
 	mouse.y = e.changedTouches[0].pageY - mouse.mouseOffsetY;
 	
-	if (!mouse.mouseDefaultEnabled) e.preventDefault();
+	if (!mouse.defaultEnabled) e.preventDefault();
 	
 }
 
@@ -193,7 +193,7 @@ function eventTouchRelease (e) {
 	
 	mouse.mouseTrueDrag = false;
 	
-	if (!mouse.mouseDefaultEnabled) e.preventDefault();
+	if (!mouse.defaultEnabled) e.preventDefault();
 	
 }
 
@@ -205,7 +205,7 @@ function eventMousePress (e) {
 	mouse.startX = mouse.x;
 	mouse.startY = mouse.y;
 	
-	if (!mouse.mouseDefaultEnabled) e.preventDefault();
+	if (!mouse.defaultEnabled) e.preventDefault();
 	
 }
 
@@ -214,7 +214,7 @@ function eventMouseMove (e) {
 	mouse.x = e.clientX - mouse.mouseOffsetX;
 	mouse.y = e.clientY - mouse.mouseOffsetY;
 	
-	if (!mouse.mouseDefaultEnabled) e.preventDefault();
+	if (!mouse.defaultEnabled) e.preventDefault();
 	
 }
 
@@ -222,7 +222,7 @@ function eventMouseRelease (e) {
 	
 	mouse.mouseTrueDrag = false;
 	
-	if (!mouse.mouseDefaultEnabled) e.preventDefault();
+	if (!mouse.defaultEnabled) e.preventDefault();
 	
 }
 
