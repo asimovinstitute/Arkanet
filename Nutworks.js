@@ -1,17 +1,20 @@
 (function () {
 	
 	// n: size of the "perfect grid" (see ### cell creation)
-	// gs: grid size for the axon building, maximum manhatten distance for connections/axons (see ### axon building)
+	// distance: grid size for the axon building, maximum manhatten distance for connections/axons (see ### axon building)
 	// seed: seed
 	// update count: update all cells n times
 	// change rate: see below
-	Brain = function (n, gs, seed, updateCount, changeRate) {
+	Brain = function (n, distance, seed, updateCount, changeRate) {
 		
 		// the scalar applied to the random weights
 		this.cells = [];
 		
-		// starting weight range
-		this.weightRange = 50;
+		// output cells of the network
+		this.outs = [];
+		
+		// input cells of the network
+		this.ins = [];
 		
 		// random seed
 		this.seed = seed;
@@ -22,29 +25,28 @@
 		// chance of a cell to output noise
 		this.impulseCount = 0;
 		
-		// scalar to the weight change (see ### cell updates)
-		this.changeRate = changeRate;
-		
-		this.buildBrain(n, gs, seed);
+		this.buildBrain(n, distance, seed);
 		
 	};
 	
-	// activation function. self explanetory i hope. input <-∞, ∞> output <0, 1> (note <> not inclusive)
-	// note the positive only values, so network will be most useful if measured through a linear output layer
-	Brain.prototype.activate = function (x) {
-		
-		return 1 / (1 + Math.exp(-x));
-		
-	};
+	var idt = 0;
 	
+	// this cell just "is"
+	Brain.NEUTRAL = idt++;
 	
-	Brain.prototype.buildBrain = function (n, gs, seed) {
+	// also measured/changed in input or output
+	Brain.INPUT = idt++;
+	Brain.OUTPUT = idt++;
+		
+	Brain.prototype.buildBrain = function (n, distance, seed) {
 		
 		// (re-)set the seed
 		this.seed = seed;
 		
 		// clear the cells, so that calling the function at runtime clears the current crap on the field
 		this.cells = [];
+		this.ins = [];
+		this.outs = [];
 		
 		// margin from the edges, eye candy
 		var m = 20;
@@ -62,23 +64,17 @@
 				cell.x = a + 0.8 * (this.random() - 0.5) * n;
 				cell.y = b + 0.8 * (this.random() - 0.5) * n;
 				
+				// eye-candy
+				cell.smoothing = 0;
+				
 				// my inputs
 				cell.in = [];
 				
-				// my weights, same length as inputs
-				cell.w = [];
+				// output
+				cell.out = this.random() > 0.5;
 				
-				// accumulates the absolute weight delta of past updates
-				cell.activity = 0;
-				
-				// output, init to random
-				cell.out = this.random();
-				
-				// previous out value, init to output
-				cell.last = cell.out;
-				
-				// importance is activity scaled to <0, 1>
-				cell.importance = this.activate(-1 + cell.activity);
+				// the role of this cell in the network
+				cell.kind = Brain.NEUTRAL;
 				
 				this.cells.push(cell);
 				
@@ -91,17 +87,17 @@
 		// use a grid with squares of size x
 		// and a second grid to account for warping entities (on the edges) which
 		// would normally occupy 2 or 4 cells. this "warp" grid has cells of size x as well
-		// but all the entities are transposed by half of x. x in this case is in the "gs"
+		// but all the entities are transposed by half of x. x in this case is in the "distance"
 		// variable, as in grid size.
 		var grid = [];
 		var warp = [];
 		
-		for (var a = 0; a < width / gs + 1; a++) {
+		for (var a = 0; a < width / distance + 1; a++) {
 			
 			grid[a] = [];
 			warp[a] = [];
 			
-			for (var b = 0; b < height / gs + 1; b++) {
+			for (var b = 0; b < height / distance + 1; b++) {
 				
 				grid[a][b] = [];
 				warp[a][b] = [];
@@ -119,8 +115,11 @@
 		// if you leave out the multiplication you get the correct grid/warp position.
 		for (var a = 0; a < cells.length; a++) {
 			
-			grid[Math.floor(cells[a].x / gs)][Math.floor(cells[a].y / gs)].push(a);
-			warp[1 + Math.floor((cells[a].x - 0.5 * gs) / gs)][1 + Math.floor((cells[a].y - 0.5 * gs) / gs)].push(a);
+			grid[Math.floor(cells[a].x / distance)]
+				[Math.floor(cells[a].y / distance)].push(a);
+			
+			warp[1 + Math.floor((cells[a].x - 0.5 * distance) / distance)]
+				[1 + Math.floor((cells[a].y - 0.5 * distance) / distance)].push(a);
 			
 		}
 		
@@ -156,19 +155,6 @@
 			
 		}
 		
-		// ### initial weights
-		// now that we have a connected system, we now how many axons each cell has.
-		// assign a random weight to each cell. weights can be negative.
-		for (var a = 0; a < cells.length; a++) {
-			
-			for (var b = 0; b < cells[a].in.length; b++) {
-				
-				cells[a].w.push(this.random() * -this.weightRange + 0.5 * this.weightRange);
-				
-			}
-			
-		}
-		
 	};
 	
 	// bash head on keyboard style rgn. probably horribly repetitive and non-uniform but it works ok for most things.
@@ -178,7 +164,59 @@
 		
 		return 0.0000001 * (this.seed % 10000000);
 		
-	}
+	};
+	
+	// select exactly n cells, change their type and return their indices
+	Brain.prototype.setInputsAndOuputs = function (nIns, nOuts) {
+		
+		var indices = [];
+		
+		// n cannot be bigger than 80% of the number of cells, to prevent this lazy solution form freezing.
+		for (var a = 0; a < Math.min(nIns + nOuts, this.cells.length / 1.2); a++) {
+			
+			var x = 0;
+			var invalid = false;
+			
+			do {
+				
+				invalid = false;
+				
+				x = Math.floor(this.random() * this.cells.length);
+				
+				for (var b = 0; b < indices.length; b++) {
+					
+					if (indices[b] == x) {
+						
+						invalid = true;
+						break;
+						
+					}
+					
+				}
+				
+			} while (invalid);
+			
+			indices.push(x);
+			
+		}
+		
+		for (var a = 0; a < indices.length; a++) {
+			
+			if (a < nIns) {
+				
+				this.cells[indices[a]].kind = Brain.INPUT;
+				this.ins.push(indices[a]);
+				
+			} else {
+				
+				this.cells[indices[a]].kind = Brain.OUTPUT;
+				this.outs.push(indices[a]);
+				
+			}
+			
+		}
+		
+	};
 	
 	Brain.prototype.update = function () {
 		
@@ -193,35 +231,21 @@
 				
 				if (this.random() > this.impulseCount) {
 					
-					var sum = 0;
+					var count = 0;
 					
 					for (var b = 0; b < c.in.length; b++) {
 						
-						sum += this.cells[c.in[b]].out * c.w[b];
-						
-						// change every weight according to importance (activity based) and output,
-						// both shifted to a <-0.5, 0.5> range, scaled by the changeRate (slider value as well)
-						c.w[b] += this.changeRate * (c.importance - 0.5) * (c.out - 0.5);
+						count += this.cells[c.in[b]].out;
 						
 					}
 					
-					c.out = this.activate(sum);
+					c.out = count > 1 && (count % 2 == 0);
 					
 				} else {
 					
-					c.out = this.random();
+					c.out = this.random() > 0.5;
 					
 				}
-				
-				// every frame, increase activity by current output compared to previous output
-				// so flickering cells are highly active cells. active cells are not cells that are firing,
-				// nor cells that have a particular high or low output.
-				c.activity += Math.abs(c.out - c.last);
-				// constantly reduce the activity, so that activity slowly declines if it's not actively switching
-				c.activity /= 1.05;
-				
-				// activity brought down to <0, 1>
-				c.importance = this.activate(-1 + c.activity);
 				
 				c.last = c.out;
 				
@@ -231,10 +255,30 @@
 		
 	};
 	
+	Brain.prototype.animate = function () {
+		
+		for (var a = 0; a < this.cells.length; a++) {
+			
+			this.cells[a].smoothing += 0.2 * (this.cells[a].out - this.cells[a].smoothing);
+			
+		}
+		
+	};
+	
 })();
 
 var brain;
+
+// unused, for outputting values
 var output;
+
+// measurements
+var mes = {smooth:[0, 0, 0]};
+
+var player = {x:0, y:0, tx:0, ty:0};
+var blobs = [];
+var spawners = [];
+var timer = 0;
 
 function loaded () {
 	
@@ -243,8 +287,14 @@ function loaded () {
 	height = 500;
 	fitCanvas();
 	
+	player.x = 0.5 * width;
+	player.tx = 0.5 * width;
+	player.y = 0.5 * height;
+	player.ty = 0.5 * height;
+	
 	// works best with parameters like (x, 1.8ish * x, y)
-	brain = new Brain(30, 55, 3, 1, 0.1);
+	brain = new Brain(25, 45, Math.floor(Math.random() * 1000), 1, 0.1);
+	brain.setInputsAndOuputs(150, 9);
 	
 	// output @captain obvious
 	output = document.createElement("div");
@@ -259,10 +309,60 @@ function loaded () {
 // each frame, default vsynced 60hz
 function loop () {
 	
-	brain.update();
-	
 	// ### rendering
 	render.clearRect(0, 0, width, height);
+	
+	if (mouse.drag) {
+		
+		for (var a = 0; a < brain.ins.length; a++) {
+			
+			brain.cells[brain.ins[a]].out = Math.random() > 0.5;
+			
+		}
+		
+	}
+	
+	timer--;
+	
+	if (timer < 0) {
+		
+		brain.update();
+		timer = 10;
+		
+	}
+	
+	brain.animate();
+	
+	drawBrain();
+	// drawGame();
+	
+}
+
+function drawGame () {
+	
+	render.fillStyle = "rgba(255, 255, 255, 0.9)";
+	render.fillRect(0, 0, width, height);
+	
+	render.fillStyle = "#000";
+	render.beginPath();
+	render.arc(player.x, player.y, Math.max(3, player.radius), 0, 2 * Math.PI, false);
+	render.fill();
+	
+	for (var a = 0; a < orbs.length; a++) {
+		
+		if (orbs[a].radius <= 0) continue;
+		
+		render.fillStyle = "rgb(" + orbs[a].red + ", " + orbs[a].green + ", " + orbs[a].blue + ")";
+		render.beginPath();
+		render.arc(orbs[a].x, orbs[a].y, orbs[a].radius, 0, 2 * Math.PI, false);
+		render.fill();
+		
+	}
+	
+}
+
+function drawBrain () {
+	
 	// in case of little to no experience with css: # indicates hexidecimal color code,
 	// shorthand is to provide 3 digits which will then be copied. so #rgb, making #f0f pink for example.
 	render.fillStyle = "#000";
@@ -270,7 +370,7 @@ function loop () {
 	// get your shit straight html5 spec, stroke or line, pick one term and stick with it.
 	// but nooo let's use different terms. watcha gonna dew.
 	render.lineWidth = 1;
-	render.strokeStyle = "#333";
+	render.strokeStyle = "#666";
 	
 	var x;
 	
@@ -295,40 +395,21 @@ function loop () {
 	// done
 	render.stroke();
 	
-	// draw all the cells one by one, after drawing the lines
+	
+	// draw all the cells one by one due different colors
+	
 	for (var a = 0; a < brain.cells.length; a++) {
 		
 		x = brain.cells[a];
 		
-		// red channel is output, green channel is importance, blue channel unused
-		render.fillStyle = "rgb(" + Math.floor(255 * x.out) + ", " + Math.floor(255 * x.importance) + ", 0)";
+		render.fillStyle = x.kind == Brain.OUTPUT ? "#f90" : x.kind == Brain.INPUT ? "#6c0" : "#09f";
 		render.beginPath();
-		// cell size is also based on importance for clarity
-		render.arc(x.x, x.y, 8 * x.importance, 0, 2 * Math.PI, false);
+		
+		// cell size is now based on direct output only
+		render.arc(x.x, x.y, 3 + 4 * x.smoothing, 0, 2 * Math.PI, false);
+		
 		render.fill();
 		
 	}
-	
-	// ### measuring
-	// measure and print stuff, like the sum of the importance, activity and other stuff.
-	
-	var out = "";
-	var totalActivity = 0;
-	var totalAbsoluteOutput = 0;
-	var totalOutput = 0;
-	var totalImportance = 0;
-	
-	for (var a = 0; a < brain.cells.length; a++) {
-		
-		totalActivity += brain.cells[a].activity;
-		totalAbsoluteOutput += Math.abs(brain.cells[a].out);
-		totalOutput += brain.cells[a].out;
-		totalImportance += brain.cells[a].importance;
-		
-	}
-	
-	out += "activity - output - absolute output - importance";
-	
-	output.textContent = out;
 	
 }
