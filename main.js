@@ -83,6 +83,9 @@ function fitCanvas () {
 	render.canvas.style.marginLeft = -0.5 * width + "px";
 	render.canvas.style.marginTop = -0.5 * height + "px";
 	
+	mouse.mouseOffsetX = parseInt(render.canvas.getBoundingClientRect().left);
+	mouse.mouseOffsetY = parseInt(render.canvas.getBoundingClientRect().top);
+	
 	render.setTransform(stretch, 0, 0, stretch, 0, 0);
 	
 }
