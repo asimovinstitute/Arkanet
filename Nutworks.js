@@ -1,3 +1,10 @@
+// arcade learning environment
+// papers
+// tijdgebonden netwerk
+// localiteit kleine chuncks
+// spel bedenken, possibility space finite but uncomputable, differs widely from sensible moves space
+// hard to perfect
+
 // for html
 var output;
 var seed = 1;
@@ -13,7 +20,7 @@ function loaded () {
 	
 	seed = 3;
 	
-	buildBrain(20, 200);
+	buildBrain(20, 100);
 	
 	// output @captain obvious
 	output = document.createElement("div");
@@ -22,6 +29,7 @@ function loaded () {
 	output.style.whiteSpace = "pre";
 	
 	document.body.style.background = "#000";
+	document.body.style.color = "#09f";
 	document.body.appendChild(output);
 	
 }
@@ -37,7 +45,13 @@ function loop () {
 		var dx = mouse.x - cells[a].x;
 		var dy = mouse.y - cells[a].y;
 		
-		if (keyboard.space || (mouse.drag && dx * dx + dy * dy < 60 * 60)) {
+		if (mouse.drag && dx * dx + dy * dy < 60 * 60) {
+			
+			cells[a].energy = 1;
+			
+		}
+		
+		if (keyboard.space) {
 			
 			cells[a].energy = Math.random();
 			cells[a].threshold = Math.random();
@@ -49,6 +63,43 @@ function loop () {
 	
 	updateBrain(1);
 	drawBrain();
+	measureShannon();
+	
+}
+
+function measureShannon () {
+	
+	var txt = "";
+	var shannonEntropy = 0;
+	var totalEnergy = 0;
+	var numSets = 100;
+	var sets = [];
+	var frequency = 0;
+	
+	for (var a = 0; a < numSets; a++) {
+		
+		sets.push(0);
+		
+	}
+	
+	for (var a = 0; a < cells.length; a++) {
+		
+		totalEnergy += cells[a].energy;
+		sets[Math.max(0, Math.min(numSets - 1, Math.floor(cells[a].energy * numSets)))]++;
+		
+	}
+	
+	for (var b = 0; b < sets.length; b++) {
+		
+		frequency = sets[b] / cells.length;
+		shannonEntropy -= frequency == 0 ? 0 : frequency * (Math.log(frequency) / Math.log(numSets));
+		
+	}
+	
+	txt += "shannon entropy " + shannonEntropy.toFixed(4) + "\n";
+	txt += "total energy " + Math.floor(totalEnergy);
+	
+	output.innerHTML = txt;
 	
 }
 
@@ -88,7 +139,7 @@ function updateBrain (updateCount) {
 				
 			}
 			
-			c.energy -= 0.001;
+			// c.energy -= 0.001;
 			c.threshold += 0.01;
 			c.power -= 0.01;
 			
