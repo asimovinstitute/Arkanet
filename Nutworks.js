@@ -10,6 +10,15 @@ var output;
 var seed = 1;
 var cells = [];
 var cellScale = 10;
+// for the graphs
+var records = [];
+// how many samples to collect before trashing old ones
+var recordSampleSize = 50;
+// how often to record data
+var recordFrequency = 5;
+var recordTimer = recordFrequency;
+var subdivisions = [8, 4];
+var selection = {x:0, y:0, ex:0, ey:0, fade:0};
 
 function loaded () {
 	
@@ -24,8 +33,8 @@ function loaded () {
 	
 	// output @captain obvious
 	output = document.createElement("div");
-	output.style.font = "15px monospace";
-	output.style.margin = "15px";
+	output.style.font = "10px monospace";
+	output.style.margin = "10px";
 	output.style.whiteSpace = "pre";
 	
 	document.body.style.background = "#000";
@@ -45,29 +54,156 @@ function loop () {
 		var dx = mouse.x - cells[a].x;
 		var dy = mouse.y - cells[a].y;
 		
-		if (mouse.drag && dx * dx + dy * dy < 60 * 60) {
+		if (keyboard.space && dx * dx + dy * dy < 60 * 60) {
 			
 			cells[a].energy = 1;
 			
 		}
 		
-		if (keyboard.space) {
-			
-			cells[a].energy = Math.random();
-			cells[a].threshold = Math.random();
-			cells[a].power = Math.random();
-			
-		}
+	}
+	
+	if (mouse.drag) {
+		
+		selection.x = Math.min(mouse.x, mouse.startX);
+		selection.y = Math.min(mouse.y, mouse.startY);
+		selection.ex = Math.max(mouse.x, mouse.startX);
+		selection.ey = Math.max(mouse.y, mouse.startY);
 		
 	}
 	
 	updateBrain(1);
 	drawBrain();
-	measureShannon();
+	drawSelection();
+	performMeasurements();
+	
+	if (keyboard.enter) drawGraphs();
 	
 }
 
-function measureShannon () {
+function drawGraphs () {
+	
+	render.fillStyle = "rgba(0, 0, 0, 0.6)";
+	render.fillRect(0, 0, width, height);
+	
+	
+	for (var a = 0; a < records.length; a++) {
+		
+		for (var b = 0; b < records[a].length; b++) {
+			
+			render.fillStyle = "rgba(255, 255, 255, 0.6)";
+			render.fillRect((b - 1 + recordTimer / recordFrequency) * (width / (-1 + records[a].length)),
+							a * (height / (-1 + records.length)),
+							width / (-1 + records[a].length),
+							Math.pow(records[a][b].s, 2) * (height / (-1 + records.length)));
+			
+		}
+		
+	}
+	
+}
+
+function drawSelection () {
+	
+	if (mouse.drag) selection.fade = 0.2;
+	
+	if (selection.fade > 0.001) {
+		
+		selection.fade -= 0.05 * selection.fade;
+		
+		render.fillStyle = "rgba(255, 255, 255, " + selection.fade + ")";
+		render.fillRect(selection.x, selection.y, selection.ex - selection.x, selection.ey - selection.y);
+		
+	} else {
+		
+		selection.fade = 0;
+		
+	}
+	
+}
+
+function performMeasurements () {
+	
+	var shannonValues = "";
+	var energyValues = "";
+	var areasToMeasure = [];
+	var customArea = [];
+	var result = {};
+	
+	for (var a = 0; a < subdivisions[0]; a++) {
+		
+		areasToMeasure[a] = [];
+		
+		for (var b = 0; b < subdivisions[1]; b++) {
+			
+			areasToMeasure[a][b] = [];
+			
+		}
+		
+	}
+	
+	for (var a = 0; a < cells.length; a++) {
+		
+		areasToMeasure	[Math.floor(cells[a].x / (width / subdivisions[0]))]
+						[Math.floor(cells[a].y / (height / subdivisions[1]))].push(cells[a]);
+		
+		if (cells[a].x > selection.x && cells[a].x < selection.ex &&
+			cells[a].y > selection.y && cells[a].y < selection.ey) {
+			
+			customArea.push(cells[a]);
+			
+		}
+		
+	}
+	
+	recordTimer--;
+	if (recordTimer < 0) recordTimer = recordFrequency;
+	
+	var measurementPrecision = 2;
+	var measurementCount = 0;
+	
+	for (var a = 0; a < subdivisions[0]; a++) {
+		
+		for (var b = 0; b < subdivisions[1]; b++) {
+			
+			result = measureShannon(areasToMeasure[a][b]);
+			
+			if (recordTimer == recordFrequency) {
+				
+				if (!records[measurementCount]) records[measurementCount] = [];
+				records[measurementCount++].push({e:result.e, s:result.s});
+				
+			}
+			
+			shannonValues += result.s.toFixed(measurementPrecision) + " ";
+			energyValues += result.e.toFixed(measurementPrecision) + " ";
+			
+		}
+		
+	}
+	
+	result = measureShannon(customArea);
+	
+	if (recordTimer == recordFrequency) {
+		
+		if (!records[measurementCount]) records[measurementCount] = [];
+		records[measurementCount++].push({e:result.e, s:result.s});
+		
+	}
+	
+	shannonValues += "- " + result.s.toFixed(measurementPrecision);
+	energyValues += "- " + result.e.toFixed(measurementPrecision);
+	
+	output.innerHTML = "shannon entropies\n" + shannonValues + "\ntotal energies\n" + energyValues;
+	
+	for (var a = 0; a < records.length; a++) {
+		
+		if (records[a].length > recordSampleSize) records[a] = records[a].slice(-recordSampleSize);
+		
+	}
+	
+}
+
+function measureShannon (c) {
 	
 	var txt = "";
 	var shannonEntropy = 0;
@@ -82,24 +218,21 @@ function measureShannon () {
 		
 	}
 	
-	for (var a = 0; a < cells.length; a++) {
+	for (var a = 0; a < c.length; a++) {
 		
-		totalEnergy += cells[a].energy;
-		sets[Math.max(0, Math.min(numSets - 1, Math.floor(cells[a].energy * numSets)))]++;
+		totalEnergy += c[a].energy;
+		sets[Math.max(0, Math.min(numSets - 1, Math.floor(c[a].energy * numSets)))]++;
 		
 	}
 	
 	for (var b = 0; b < sets.length; b++) {
 		
-		frequency = sets[b] / cells.length;
+		frequency = sets[b] / c.length;
 		shannonEntropy -= frequency == 0 ? 0 : frequency * (Math.log(frequency) / Math.log(numSets));
 		
 	}
 	
-	txt += "shannon entropy " + shannonEntropy.toFixed(4) + "\n";
-	txt += "total energy " + Math.floor(totalEnergy);
-	
-	output.innerHTML = txt;
+	return {e:totalEnergy, s:shannonEntropy};
 	
 }
 
@@ -192,7 +325,16 @@ function drawBrain () {
 		
 		cell = cells[a];
 		
-		render.fillStyle = "rgb(" + Math.floor(255 * cell.threshold) + ", " + Math.floor(255 * cell.power) + ", 255)";
+		if (cells[a].x > selection.x && cells[a].x < selection.ex &&
+			cells[a].y > selection.y && cells[a].y < selection.ey) {
+			
+			render.fillStyle = "rgb(" + Math.floor(255 * cell.threshold) + ", " + Math.floor(255 * cell.power) + ", 153)";
+			
+		} else {
+			
+			render.fillStyle = "rgb(" + Math.floor(255 * cell.threshold) + ", " + Math.floor(255 * cell.power) + ", 255)";
+			
+		}
 		
 		// cell size is now based on direct output only
 		render.fillRect(cell.x - 0.5 * cellScale * (0.1 + 0.9 * cell.energy),
